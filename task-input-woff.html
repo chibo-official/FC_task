@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>タスク入力</title>
+<script charset="utf-8" src="https://static.worksmobile.net/static/wm/woff/edge/3.7.1/sdk.js"></script>
+<style>
+  :root {
+    --bg: #F6F6F4;
+    --panel: #FFFFFF;
+    --ink: #20242C;
+    --ink-soft: #5B6270;
+    --line: #E4E3DE;
+    --accent: #33508F;
+    --accent-soft: #E9EEF7;
+    --overdue: #C1462F;
+    --overdue-bg: #FBEAE6;
+    --done: #3C8A5B;
+    --radius: 4px;
+    font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-size: 15px; }
+  body { padding: 16px; padding-bottom: 40px; }
+  button, input, select, textarea { font-family: inherit; font-size: inherit; }
+
+  .header { margin-bottom: 16px; }
+  .header .eyebrow { font-size: 11.5px; color: var(--accent); font-weight: 700; letter-spacing: .04em; }
+  .header h1 { font-size: 18px; margin: 2px 0 0; }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .member-btn {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 14px 16px; margin-bottom: 8px;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--panel); font-size: 15px; cursor: pointer; text-align: left;
+  }
+  .member-btn:active { background: var(--accent-soft); border-color: var(--accent); }
+  .member-role-tag {
+    font-size: 10.5px; color: var(--accent); background: var(--accent-soft);
+    padding: 2px 8px; border-radius: 999px;
+  }
+
+  .whoami-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 10px 14px; margin-bottom: 16px; font-size: 13px; color: var(--ink-soft);
+  }
+  .whoami-bar strong { color: var(--ink); }
+  .whoami-bar button {
+    border: none; background: transparent; color: var(--accent); font-size: 12.5px; cursor: pointer;
+  }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12.5px; color: var(--ink-soft); margin-bottom: 5px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--panel); font-size: 15px;
+  }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .priority-choice { display: flex; gap: 8px; }
+  .priority-choice button {
+    flex: 1; padding: 10px 0; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--panel); font-size: 14px; color: var(--ink-soft); cursor: pointer;
+  }
+  .priority-choice button.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+
+  .submit-btn {
+    width: 100%; padding: 14px 0; margin-top: 6px;
+    background: var(--accent); color: #fff; border: none; border-radius: var(--radius);
+    font-size: 15.5px; font-weight: 700; cursor: pointer;
+  }
+  .submit-btn:disabled { background: #B7C0D4; }
+
+  .error-banner {
+    background: var(--overdue-bg); border: 1px solid var(--overdue); color: var(--overdue);
+    padding: 10px 12px; border-radius: var(--radius); font-size: 13px; margin-bottom: 14px; display: none;
+  }
+
+  .done-screen { text-align: center; padding-top: 40px; }
+  .done-icon {
+    width: 56px; height: 56px; border-radius: 50%; background: var(--done);
+    color: #fff; font-size: 28px; display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 16px;
+  }
+  .done-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .done-sub { font-size: 13px; color: var(--ink-soft); margin-bottom: 24px; }
+  .done-actions { display: flex; flex-direction: column; gap: 8px; }
+  .done-actions button {
+    padding: 12px 0; border-radius: var(--radius); font-size: 14px; cursor: pointer; border: 1px solid var(--line); background: var(--panel);
+  }
+  .done-actions button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+
+  .loading { text-align: center; padding: 40px 0; color: var(--ink-soft); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="eyebrow">FC事業部タスク管理</div>
+  <h1>タスクを入力</h1>
+</div>
+
+<div class="error-banner" id="error-banner"></div>
+
+<!-- 画面0：読み込み中 -->
+<div class="screen active" id="screen-loading">
+  <div class="loading">読み込み中...</div>
+</div>
+
+<!-- 画面1：名前選択 -->
+<div class="screen" id="screen-name">
+  <div class="field" style="margin-bottom:12px;">
+    <label>ご自身の名前を選んでください</label>
+  </div>
+  <div id="member-list"></div>
+</div>
+
+<!-- 画面2：タスク入力フォーム -->
+<div class="screen" id="screen-form">
+  <div class="whoami-bar">
+    入力者：<strong id="whoami-name">-</strong>
+    <button id="change-name-btn">名前を変更</button>
+  </div>
+
+  <div class="field">
+    <label>タイトル</label>
+    <input type="text" id="f-title" placeholder="例：看板照明の修理業者手配">
+  </div>
+
+  <div class="field">
+    <label>店舗</label>
+    <select id="f-store"></select>
+  </div>
+
+  <div class="field">
+    <label>担当者</label>
+    <select id="f-assignee"></select>
+  </div>
+
+  <div class="field">
+    <label>優先度</label>
+    <div class="priority-choice" id="priority-choice">
+      <button type="button" data-value="低">低</button>
+      <button type="button" data-value="中">中</button>
+      <button type="button" data-value="高">高</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>期限（任意）</label>
+    <input type="date" id="f-due">
+  </div>
+
+  <button class="submit-btn" id="submit-btn">タスクを作成</button>
+</div>
+
+<!-- 画面3：完了 -->
+<div class="screen" id="screen-done">
+  <div class="done-screen">
+    <div class="done-icon">✓</div>
+    <div class="done-title" id="done-title">タスクを作成しました</div>
+    <div class="done-sub" id="done-sub"></div>
+    <div class="done-actions">
+      <button class="primary" id="create-another-btn">続けてタスクを入力</button>
+      <button id="close-app-btn">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 設定
+// ============================================================
+const CONFIG = {
+  API_URL: "https://script.google.com/macros/s/AKfycbxRBCXuWsaZwwA7MxZkiwidRu2cDlv-wS-eMotw4CdyIi-1Q3tXLL5a8hZFK6iN47yT/exec",
+  // Developer Consoleで「WOFFアプリ」を登録すると発行されるWOFF ID。
+  WOFF_ID: "4kS_N8lLVOzUhXI39vaHEw",
+};
+
+const state = {
+  members: [],
+  stores: [],
+  selectedName: null,
+  priority: "中",
+  inClient: false,
+};
+
+// ============================================================
+// API呼び出し
+// ============================================================
+function apiGet(action, params) {
+  const qs = new URLSearchParams({ action, ...(params || {}) }).toString();
+  return fetch(`${CONFIG.API_URL}?${qs}`)
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res.ok) throw new Error(res.error || "APIエラー");
+      return res.data;
+    });
+}
+
+function apiPost(action, payload) {
+  return fetch(CONFIG.API_URL, {
+    method: "POST",
+    body: JSON.stringify({ action, ...(payload || {}) }),
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res.ok) throw new Error(res.error || "APIエラー");
+      return res.data;
+    });
+}
+
+function showError(msg) {
+  const el = document.getElementById("error-banner");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+function clearError() {
+  document.getElementById("error-banner").style.display = "none";
+}
+
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach((el) => el.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+// ============================================================
+// 初期化（WOFF SDK → データ取得 → 名前選択画面）
+// ============================================================
+function boot() {
+  if (typeof woff === "undefined") {
+    // ブラウザで直接開いた場合など、WOFF環境外でもテストできるようにする
+    state.inClient = false;
+    loadData();
+    return;
+  }
+
+  woff
+    .init({ woffId: CONFIG.WOFF_ID })
+    .then(() => {
+      state.inClient = woff.isInClient ? woff.isInClient() : false;
+      if (woff.isLoggedIn && !woff.isLoggedIn()) {
+        woff.login({ redirectUri: window.location.href });
+        return;
+      }
+      loadData();
+    })
+    .catch((err) => {
+      // WOFF初期化に失敗した場合も、フォーム自体は使えるようにしておく
+      console.error("WOFF初期化エラー", err);
+      loadData();
+    });
+}
+
+function loadData() {
+  Promise.all([apiGet("listMembers"), apiGet("listStores")])
+    .then(([members, stores]) => {
+      state.members = members;
+      state.stores = stores;
+      renderMemberList();
+      populateFormOptions();
+      showScreen("screen-name");
+    })
+    .catch((err) => {
+      showError("読み込みに失敗しました：" + err.message);
+    });
+}
+
+// ============================================================
+// 画面1：名前選択
+// ============================================================
+function renderMemberList() {
+  const container = document.getElementById("member-list");
+  container.innerHTML = "";
+  state.members.forEach((m) => {
+    const btn = document.createElement("button");
+    btn.className = "member-btn";
+    btn.innerHTML = `<span>${m.name}</span>${m.role === "管理者" ? '<span class="member-role-tag">管理者</span>' : ""}`;
+    btn.addEventListener("click", () => selectName(m.name));
+    container.appendChild(btn);
+  });
+}
+
+function selectName(name) {
+  state.selectedName = name;
+  document.getElementById("whoami-name").textContent = name;
+  document.getElementById("f-assignee").value = name;
+  clearError();
+  showScreen("screen-form");
+}
+
+document.getElementById("change-name-btn").addEventListener("click", () => {
+  showScreen("screen-name");
+});
+
+// ============================================================
+// 画面2：フォーム
+// ============================================================
+function populateFormOptions() {
+  const storeSel = document.getElementById("f-store");
+  storeSel.innerHTML = state.stores.map((s) => `<option value="${s.name}">${s.name}</option>`).join("");
+
+  const assigneeSel = document.getElementById("f-assignee");
+  assigneeSel.innerHTML = state.members.map((m) => `<option value="${m.name}">${m.name}</option>`).join("");
+}
+
+document.querySelectorAll("#priority-choice button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#priority-choice button").forEach((b) => b.classList.remove("selected"));
+    btn.classList.add("selected");
+    state.priority = btn.dataset.value;
+  });
+});
+// 初期選択：中
+document.querySelector('#priority-choice button[data-value="中"]').classList.add("selected");
+
+document.getElementById("submit-btn").addEventListener("click", () => {
+  const title = document.getElementById("f-title").value.trim();
+  const store = document.getElementById("f-store").value;
+  const assignee = document.getElementById("f-assignee").value;
+  const due = document.getElementById("f-due").value;
+
+  clearError();
+  if (!title) { showError("タイトルを入力してください。"); return; }
+  if (!store) { showError("店舗を選択してください。"); return; }
+
+  const btn = document.getElementById("submit-btn");
+  btn.disabled = true;
+  btn.textContent = "作成中...";
+
+  apiPost("createTask", {
+    user: state.selectedName,
+    title: title,
+    store: store,
+    assignee: assignee,
+    priority: state.priority,
+    status: "未着手",
+    due: due,
+  })
+    .then((result) => {
+      showDone(result.taskId, title, store, assignee, due);
+    })
+    .catch((err) => {
+      showError("作成に失敗しました：" + err.message);
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = "タスクを作成";
+    });
+});
+
+// ============================================================
+// 画面3：完了
+// ============================================================
+function showDone(taskId, title, store, assignee, due) {
+  document.getElementById("done-sub").textContent =
+    `${taskId}　${store}　担当：${assignee}${due ? "　期限：" + due : ""}`;
+
+  // WOFFアプリがトークルーム内で開かれている場合、確認メッセージを投稿する
+  if (state.inClient && typeof woff !== "undefined" && woff.sendMessage) {
+    woff
+      .sendMessage({ content: `✅ タスクを登録しました（${state.selectedName}）\n「${title}」\n${store}　担当：${assignee}${due ? "　期限：" + due : ""}` })
+      .catch((err) => console.error("トークルームへの送信に失敗", err));
+  }
+
+  showScreen("screen-done");
+}
+
+document.getElementById("create-another-btn").addEventListener("click", () => {
+  document.getElementById("f-title").value = "";
+  document.getElementById("f-due").value = "";
+  clearError();
+  showScreen("screen-form");
+});
+
+document.getElementById("close-app-btn").addEventListener("click", () => {
+  if (state.inClient && typeof woff !== "undefined" && woff.closeWindow) {
+    woff.closeWindow();
+  } else {
+    window.close();
+  }
+});
+
+// ============================================================
+// 起動
+// ============================================================
+boot();
+</script>
+</body>
+</html>
