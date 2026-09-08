@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FC事業部タスク管理</title>
+<style>
+  :root {
+    --bg: #F6F6F4;
+    --panel: #FFFFFF;
+    --ink: #20242C;
+    --ink-soft: #5B6270;
+    --line: #E4E3DE;
+    --accent: #33508F;
+    --accent-soft: #E9EEF7;
+    --status-todo: #8B8F98;
+    --status-progress: #33508F;
+    --status-done: #3C8A5B;
+    --overdue: #C1462F;
+    --overdue-bg: #FBEAE6;
+    --warn-bg: #FBF4E3;
+    --warn: #A9791F;
+    --radius: 3px;
+    font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-size: 14px; line-height: 1.6; }
+  button, input, select, textarea { font-family: inherit; font-size: inherit; }
+
+  /* ---------- Login screen ---------- */
+  #login-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1B2130;
+  }
+  .login-card {
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 36px 40px;
+    width: 360px;
+    max-width: 90vw;
+  }
+  .login-card h1 {
+    font-size: 17px;
+    margin: 0 0 4px;
+  }
+  .login-card .sub {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-bottom: 20px;
+  }
+  .member-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 11px 14px;
+    margin-bottom: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #FDFDFC;
+    cursor: pointer;
+    font-size: 13.5px;
+  }
+  .member-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .member-role-tag {
+    font-size: 10.5px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 1px 7px;
+    border-radius: 999px;
+    margin-left: 8px;
+  }
+  .login-status { font-size: 12.5px; color: var(--ink-soft); margin-top: 10px; }
+
+  /* ---------- App layout ---------- */
+  #app { display: none; }
+  .app-grid { display: grid; grid-template-columns: 200px 1fr; min-height: 100vh; }
+  .sidebar { background: #1B2130; color: #C7CCDA; padding: 20px 0; display: flex; flex-direction: column; }
+  .brand { padding: 0 20px 20px; border-bottom: 1px solid #2C3242; margin-bottom: 16px; }
+  .brand-name { font-size: 13px; letter-spacing: .04em; color: #8891A5; }
+  .brand-title { font-size: 16px; font-weight: 700; color: #fff; margin-top: 3px; }
+  .nav-item { padding: 10px 20px; font-size: 13px; color: #A6ADBE; border-left: 3px solid transparent; }
+  .nav-item.active { color: #fff; background: #232A3B; border-left-color: var(--accent); font-weight: 600; }
+  .sidebar-foot { margin-top: auto; padding: 14px 20px 4px; font-size: 11px; color: #5D6478; border-top: 1px solid #2C3242; }
+  .whoami { font-size: 12px; color: #C7CCDA; }
+  .whoami button {
+    margin-top: 6px; background: transparent; border: 1px solid #3A4155; color: #C7CCDA;
+    padding: 4px 9px; border-radius: var(--radius); cursor: pointer; font-size: 11px;
+  }
+
+  .main { padding: 22px 28px 40px; }
+  .topbar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
+  .topbar h1 { font-size: 19px; margin: 0 0 4px; font-weight: 700; }
+  .topbar .sub { font-size: 12.5px; color: var(--ink-soft); }
+  .view-toggle { display: inline-flex; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .view-toggle button { border: none; background: transparent; padding: 7px 16px; font-size: 13px; color: var(--ink-soft); cursor: pointer; }
+  .view-toggle button.active { background: var(--accent); color: #fff; font-weight: 600; }
+
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .chip { font-size: 12px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--ink-soft); }
+  .chip.alert { border-color: var(--overdue); color: var(--overdue); background: var(--overdue-bg); font-weight: 600; }
+  .spacer { flex: 1; }
+  .add-btn { background: var(--accent); color: #fff; border: none; padding: 8px 16px; font-size: 13px; border-radius: var(--radius); font-weight: 600; cursor: pointer; }
+
+  .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
+  .col { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); min-height: 200px; }
+  .col-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 2px solid var(--line); }
+  .col-head .label { font-size: 13px; font-weight: 700; }
+  .col-head .count { font-size: 12px; color: var(--ink-soft); background: var(--bg); padding: 1px 8px; border-radius: 999px; }
+  .col[data-status="未着手"] .col-head { border-bottom-color: var(--status-todo); }
+  .col[data-status="進行中"] .col-head { border-bottom-color: var(--status-progress); }
+  .col[data-status="完了"] .col-head { border-bottom-color: var(--status-done); }
+
+  .card-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 40px; }
+  .task-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 11px; background: #FDFDFC; cursor: pointer; }
+  .task-card:hover { border-color: var(--accent); }
+  .task-card.overdue { border-color: var(--overdue); background: var(--overdue-bg); }
+  .task-card.due-soon { border-left: 3px solid var(--warn); }
+  .task-store { font-size: 11px; color: var(--accent); background: var(--accent-soft); display: inline-block; padding: 1px 7px; border-radius: 3px; margin-bottom: 6px; }
+  .task-title { font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
+  .task-meta { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--ink-soft); }
+  .task-due.overdue-text { color: var(--overdue); font-weight: 700; }
+  .task-due.soon-text { color: var(--warn); font-weight: 700; }
+  .avatar { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .priority-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .p-high { background: var(--overdue); }
+  .p-mid { background: var(--warn); }
+  .p-low { background: var(--status-todo); }
+  .lock-icon { font-size: 10px; color: var(--ink-soft); }
+
+  .table-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: none; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { text-align: left; font-size: 12px; color: var(--ink-soft); font-weight: 600; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  tbody td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--accent-soft); }
+  tbody tr.overdue-row { background: var(--overdue-bg); }
+  .status-pill { font-size: 11.5px; padding: 3px 10px; border-radius: 999px; font-weight: 600; display: inline-block; }
+  .status-todo-pill { background: #ECECEA; color: var(--status-todo); }
+  .status-progress-pill { background: var(--accent-soft); color: var(--status-progress); }
+  .status-done-pill { background: #E4F2E8; color: var(--status-done); }
+
+  .board.hidden, .table-wrap.hidden { display: none; }
+  .table-wrap.shown { display: block; }
+
+  .loading, .empty-msg { padding: 30px; text-align: center; color: var(--ink-soft); font-size: 13px; }
+  .error-banner {
+    background: var(--overdue-bg); border: 1px solid var(--overdue); color: var(--overdue);
+    padding: 10px 14px; border-radius: var(--radius); font-size: 12.5px; margin-bottom: 14px; display: none;
+  }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(20,22,28,0.45);
+    align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .modal-backdrop.shown { display: flex; }
+  .modal {
+    background: #fff; border-radius: var(--radius); width: 480px; max-width: 100%;
+    max-height: 90vh; overflow-y: auto; padding: 22px 24px;
+  }
+  .modal h2 { font-size: 16px; margin: 0 0 14px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 4px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .btn { padding: 8px 16px; border-radius: var(--radius); font-size: 13px; cursor: pointer; border: 1px solid var(--line); background: #fff; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  .btn.danger { background: #fff; color: var(--overdue); border-color: var(--overdue); }
+  .readonly-note { font-size: 12px; color: var(--ink-soft); background: var(--bg); padding: 8px 10px; border-radius: var(--radius); margin-bottom: 12px; }
+
+  .comment-section { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+  .comment-section h3 { font-size: 13px; margin: 0 0 10px; }
+  .comment-item { border-bottom: 1px dashed var(--line); padding: 8px 0; }
+  .comment-item:last-child { border-bottom: none; }
+  .comment-meta { font-size: 11px; color: var(--ink-soft); margin-bottom: 3px; }
+  .comment-text { font-size: 13px; }
+  .comment-add { display: flex; gap: 6px; margin-top: 10px; }
+  .comment-add textarea { flex: 1; resize: vertical; min-height: 36px; }
+</style>
+</head>
+<body>
+
+<!-- ============ Login screen ============ -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>FC事業部タスク管理</h1>
+    <div class="sub">ご自身の名前を選択してください</div>
+    <div id="member-list">
+      <div class="login-status">メンバーを読み込み中...</div>
+    </div>
+    <div class="login-status" id="login-error" style="color:#C1462F;"></div>
+  </div>
+</div>
+
+<!-- ============ Main app ============ -->
+<div id="app">
+  <div class="app-grid">
+    <div class="sidebar">
+      <div class="brand">
+        <div class="brand-name">千房ホールディングス</div>
+        <div class="brand-title">FC事業部タスク管理</div>
+      </div>
+      <div class="nav-item active">タスクボード</div>
+      <div class="nav-item">担当店舗一覧</div>
+      <div class="nav-item">メンバー</div>
+      <div class="nav-item">FCオーナー公開設定</div>
+      <div class="sidebar-foot">
+        <div class="whoami">ログイン中：<strong id="whoami-name">-</strong>
+          <button id="logout-btn">切り替え</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="topbar">
+        <div>
+          <h1>タスクボード</h1>
+          <div class="sub" id="topbar-sub">読み込み中...</div>
+        </div>
+        <div class="view-toggle">
+          <button id="btn-kanban" class="active">カンバン</button>
+          <button id="btn-table">一覧</button>
+        </div>
+      </div>
+
+      <div class="error-banner" id="error-banner"></div>
+
+      <div class="toolbar">
+        <span class="chip alert" id="chip-overdue">期限超過 -件</span>
+        <span class="chip" id="chip-todo-stale">未着手 滞留5日以上 -件</span>
+        <div class="spacer"></div>
+        <button class="add-btn" id="add-task-btn">＋ タスクを追加</button>
+      </div>
+
+      <div class="board" id="kanban-view">
+        <div class="col" data-status="未着手">
+          <div class="col-head"><span class="label">未着手</span><span class="count" id="count-todo">0</span></div>
+          <div class="card-list" id="list-todo"></div>
+        </div>
+        <div class="col" data-status="進行中">
+          <div class="col-head"><span class="label">進行中</span><span class="count" id="count-progress">0</span></div>
+          <div class="card-list" id="list-progress"></div>
+        </div>
+        <div class="col" data-status="完了">
+          <div class="col-head"><span class="label">完了</span><span class="count" id="count-done">0</span></div>
+          <div class="card-list" id="list-done"></div>
+        </div>
+      </div>
+
+      <div class="table-wrap" id="table-view">
+        <table>
+          <thead>
+            <tr>
+              <th>ステータス</th><th>タスク</th><th>店舗</th><th>担当者</th><th>優先度</th><th>期限</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Task modal ============ -->
+<div class="modal-backdrop" id="task-modal-backdrop">
+  <div class="modal">
+    <h2 id="modal-title">タスクを追加</h2>
+    <div class="readonly-note" id="readonly-note" style="display:none;">
+      このタスクは閲覧のみです（担当者・作成者・管理者のみ編集できます）
+    </div>
+    <input type="hidden" id="f-taskId">
+    <div class="field">
+      <label>タイトル</label>
+      <input type="text" id="f-title" placeholder="例：看板照明の修理業者手配">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>関連店舗</label>
+        <select id="f-store"></select>
+      </div>
+      <div class="field">
+        <label>担当者</label>
+        <select id="f-assignee"></select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>優先度</label>
+        <select id="f-priority">
+          <option value="高">高</option>
+          <option value="中">中</option>
+          <option value="低">低</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>ステータス</label>
+        <select id="f-status">
+          <option value="未着手">未着手</option>
+          <option value="進行中">進行中</option>
+          <option value="完了">完了</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>期限</label>
+      <input type="date" id="f-due">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn danger" id="delete-task-btn" style="display:none;">削除</button>
+      <div class="spacer"></div>
+      <button class="btn" id="cancel-modal-btn">キャンセル</button>
+      <button class="btn primary" id="save-task-btn">保存</button>
+    </div>
+
+    <div class="comment-section" id="comment-section" style="display:none;">
+      <h3>進捗コメント</h3>
+      <div id="comment-list"></div>
+      <div class="comment-add">
+        <textarea id="new-comment-text" placeholder="進捗コメントを追加..."></textarea>
+        <button class="btn primary" id="add-comment-btn">送信</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 設定
+// ============================================================
+const CONFIG = {
+  API_URL: "https://script.google.com/macros/s/AKfycbxRBCXuWsaZwwA7MxZkiwidRu2cDlv-wS-eMotw4CdyIi-1Q3tXLL5a8hZFK6iN47yT/exec",
+};
+
+// アプリの状態（ページを開いている間のみ保持。localStorage等は使用しない）
+const state = {
+  currentUser: null,
+  currentRole: null,
+  members: [],
+  stores: [],
+  tasks: [],
+  view: "kanban",
+};
+
+// ============================================================
+// API呼び出しヘルパー
+// ============================================================
+function apiGet(action, params) {
+  const qs = new URLSearchParams({ action, ...(params || {}) }).toString();
+  return fetch(`${CONFIG.API_URL}?${qs}`)
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res.ok) throw new Error(res.error || "APIエラー");
+      return res.data;
+    });
+}
+
+function apiPost(action, payload) {
+  // Content-Typeを明示しない（text/plainのままにする）ことで
+  // ブラウザのプリフライトリクエストを回避する（GAS側はOPTIONSに応答しないため）
+  return fetch(CONFIG.API_URL, {
+    method: "POST",
+    body: JSON.stringify({ action, user: state.currentUser, ...(payload || {}) }),
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res.ok) throw new Error(res.error || "APIエラー");
+      return res.data;
+    });
+}
+
+function showError(msg) {
+  const el = document.getElementById("error-banner");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+function clearError() {
+  document.getElementById("error-banner").style.display = "none";
+}
+
+// ============================================================
+// ログイン画面
+// ============================================================
+function initLogin() {
+  apiGet("listMembers")
+    .then((members) => {
+      state.members = members;
+      const container = document.getElementById("member-list");
+      container.innerHTML = "";
+      members.forEach((m) => {
+        const btn = document.createElement("button");
+        btn.className = "member-btn";
+        btn.innerHTML = `${m.name}${m.role === "管理者" ? '<span class="member-role-tag">管理者</span>' : ""}`;
+        btn.addEventListener("click", () => login(m.name, m.role));
+        container.appendChild(btn);
+      });
+    })
+    .catch((err) => {
+      document.getElementById("login-error").textContent =
+        "メンバー一覧の取得に失敗しました：" + err.message;
+    });
+}
+
+function login(name, role) {
+  state.currentUser = name;
+  state.currentRole = role;
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  document.getElementById("whoami-name").textContent = name;
+  initApp();
+}
+
+function logout() {
+  state.currentUser = null;
+  document.getElementById("app").style.display = "none";
+  document.getElementById("login-screen").style.display = "flex";
+}
+
+document.getElementById("logout-btn").addEventListener("click", logout);
+
+// ============================================================
+// アプリ本体の初期化
+// ============================================================
+function initApp() {
+  clearError();
+  Promise.all([apiGet("listStores"), refreshTasks()])
+    .then(([stores]) => {
+      state.stores = stores;
+      populateSelectOptions();
+    })
+    .catch((err) => showError("初期読み込みに失敗しました：" + err.message));
+}
+
+function populateSelectOptions() {
+  const storeSel = document.getElementById("f-store");
+  storeSel.innerHTML = state.stores.map((s) => `<option value="${s.name}">${s.name}</option>`).join("");
+
+  const assigneeSel = document.getElementById("f-assignee");
+  assigneeSel.innerHTML = state.members.map((m) => `<option value="${m.name}">${m.name}</option>`).join("");
+}
+
+function refreshTasks() {
+  return apiGet("listTasks", { user: state.currentUser })
+    .then((tasks) => {
+      state.tasks = tasks;
+      renderAll();
+      return tasks;
+    })
+    .catch((err) => {
+      showError("タスクの取得に失敗しました：" + err.message);
+      throw err;
+    });
+}
+
+// ============================================================
+// 描画
+// ============================================================
+function avatarInitial(name) {
+  return name ? name.charAt(0) : "?";
+}
+
+function taskCardHtml(t) {
+  const cls = ["task-card"];
+  if (t.overdue) cls.push("overdue");
+  else if (t.dueSoon) cls.push("due-soon");
+
+  const priorityClass = t.priority === "高" ? "p-high" : t.priority === "中" ? "p-mid" : "p-low";
+
+  let dueLabel = "";
+  if (t.status === "完了") {
+    dueLabel = `完了：${t.due || ""}`;
+  } else if (t.overdue) {
+    dueLabel = `<span class="task-due overdue-text">期限超過：${t.due}</span>`;
+  } else if (t.status === "未着手" && t.todoAgeDays !== "" && t.todoAgeDays >= 0) {
+    dueLabel = t.dueSoon
+      ? `<span class="task-due soon-text">未着手${t.todoAgeDays}日経過</span>`
+      : `<span class="task-due">期限：${t.due || ""}</span>`;
+  } else {
+    dueLabel = t.dueSoon
+      ? `<span class="task-due soon-text">期限：${t.due}</span>`
+      : `<span class="task-due">期限：${t.due || ""}</span>`;
+  }
+
+  return `
+    <div class="${cls.join(" ")}" data-task-id="${t.taskId}">
+      <span class="task-store">${t.store}</span>
+      <div class="task-title"><span class="priority-dot ${priorityClass}"></span>${escapeHtml(t.title)}${t.editable ? "" : ' <span class="lock-icon">🔒</span>'}</div>
+      <div class="task-meta">
+        ${dueLabel}
+        <span class="avatar" title="${t.assignee}">${avatarInitial(t.assignee)}</span>
+      </div>
+    </div>
+  `;
+}
+
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function renderAll() {
+  renderKanban();
+  renderTable();
+  renderToolbarChips();
+  document.getElementById("topbar-sub").textContent =
+    `${state.members.length}名のメンバー分のタスクを表示中（ログイン中：${state.currentUser}）`;
+}
+
+function renderKanban() {
+  const groups = { "未着手": [], "進行中": [], "完了": [] };
+  state.tasks.forEach((t) => { if (groups[t.status]) groups[t.status].push(t); });
+
+  document.getElementById("list-todo").innerHTML = groups["未着手"].map(taskCardHtml).join("") || emptyMsg();
+  document.getElementById("list-progress").innerHTML = groups["進行中"].map(taskCardHtml).join("") || emptyMsg();
+  document.getElementById("list-done").innerHTML = groups["完了"].map(taskCardHtml).join("") || emptyMsg();
+
+  document.getElementById("count-todo").textContent = groups["未着手"].length;
+  document.getElementById("count-progress").textContent = groups["進行中"].length;
+  document.getElementById("count-done").textContent = groups["完了"].length;
+
+  document.querySelectorAll(".task-card").forEach((el) => {
+    el.addEventListener("click", () => openTaskModal(el.dataset.taskId));
+  });
+}
+
+function emptyMsg() {
+  return '<div class="empty-msg">タスクなし</div>';
+}
+
+function statusPillClass(status) {
+  return status === "未着手" ? "status-todo-pill" : status === "進行中" ? "status-progress-pill" : "status-done-pill";
+}
+
+function renderTable() {
+  const body = document.getElementById("table-body");
+  body.innerHTML = state.tasks
+    .map((t) => {
+      const rowCls = t.overdue ? ' class="overdue-row"' : "";
+      const dueText = t.overdue ? `<span style="color:var(--overdue);font-weight:700;">${t.due}（超過）</span>` : (t.due || "");
+      return `
+        <tr${rowCls} data-task-id="${t.taskId}">
+          <td><span class="status-pill ${statusPillClass(t.status)}">${t.status}</span></td>
+          <td>${escapeHtml(t.title)}${t.editable ? "" : " 🔒"}</td>
+          <td>${t.store}</td>
+          <td>${t.assignee}</td>
+          <td>${t.priority}</td>
+          <td>${dueText}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  document.querySelectorAll("#table-body tr").forEach((el) => {
+    el.addEventListener("click", () => openTaskModal(el.dataset.taskId));
+  });
+}
+
+function renderToolbarChips() {
+  const overdueCount = state.tasks.filter((t) => t.overdue).length;
+  const staleCount = state.tasks.filter((t) => t.status === "未着手" && t.todoAgeDays !== "" && t.todoAgeDays >= 5).length;
+  document.getElementById("chip-overdue").textContent = `期限超過 ${overdueCount}件`;
+  document.getElementById("chip-todo-stale").textContent = `未着手 滞留5日以上 ${staleCount}件`;
+}
+
+// ============================================================
+// ビュー切り替え
+// ============================================================
+document.getElementById("btn-kanban").addEventListener("click", () => setView("kanban"));
+document.getElementById("btn-table").addEventListener("click", () => setView("table"));
+
+function setView(view) {
+  state.view = view;
+  document.getElementById("btn-kanban").classList.toggle("active", view === "kanban");
+  document.getElementById("btn-table").classList.toggle("active", view === "table");
+  document.getElementById("kanban-view").classList.toggle("hidden", view !== "kanban");
+  document.getElementById("table-view").classList.toggle("shown", view === "table");
+}
+
+// ============================================================
+// タスクモーダル（作成・編集・コメント）
+// ============================================================
+const modalBackdrop = document.getElementById("task-modal-backdrop");
+
+document.getElementById("add-task-btn").addEventListener("click", () => openTaskModal(null));
+document.getElementById("cancel-modal-btn").addEventListener("click", closeModal);
+modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) closeModal(); });
+
+function closeModal() {
+  modalBackdrop.classList.remove("shown");
+}
+
+function openTaskModal(taskId) {
+  const isNew = !taskId;
+  const task = isNew ? null : state.tasks.find((t) => t.taskId === taskId);
+
+  document.getElementById("modal-title").textContent = isNew ? "タスクを追加" : `タスク詳細（${taskId}）`;
+  document.getElementById("f-taskId").value = taskId || "";
+  document.getElementById("f-title").value = task ? task.title : "";
+  document.getElementById("f-store").value = task ? task.store : (state.stores[0] ? state.stores[0].name : "");
+  document.getElementById("f-assignee").value = task ? task.assignee : state.currentUser;
+  document.getElementById("f-priority").value = task ? task.priority : "中";
+  document.getElementById("f-status").value = task ? task.status : "未着手";
+  document.getElementById("f-due").value = task ? task.due : "";
+
+  const editable = isNew || (task && task.editable);
+  ["f-title", "f-store", "f-assignee", "f-priority", "f-status", "f-due"].forEach((id) => {
+    document.getElementById(id).disabled = !editable;
+  });
+  document.getElementById("readonly-note").style.display = editable ? "none" : "block";
+  document.getElementById("save-task-btn").style.display = editable ? "inline-block" : "none";
+  document.getElementById("delete-task-btn").style.display = !isNew && editable ? "inline-block" : "none";
+
+  const commentSection = document.getElementById("comment-section");
+  if (isNew) {
+    commentSection.style.display = "none";
+  } else {
+    commentSection.style.display = "block";
+    loadComments(taskId);
+  }
+
+  modalBackdrop.classList.add("shown");
+}
+
+document.getElementById("save-task-btn").addEventListener("click", () => {
+  const taskId = document.getElementById("f-taskId").value;
+  const payload = {
+    title: document.getElementById("f-title").value,
+    store: document.getElementById("f-store").value,
+    assignee: document.getElementById("f-assignee").value,
+    priority: document.getElementById("f-priority").value,
+    status: document.getElementById("f-status").value,
+    due: document.getElementById("f-due").value,
+  };
+
+  const action = taskId ? "updateTask" : "createTask";
+  if (taskId) payload.taskId = taskId;
+
+  clearError();
+  apiPost(action, payload)
+    .then(() => { closeModal(); return refreshTasks(); })
+    .catch((err) => showError("保存に失敗しました：" + err.message));
+});
+
+document.getElementById("delete-task-btn").addEventListener("click", () => {
+  const taskId = document.getElementById("f-taskId").value;
+  if (!confirm("このタスクを削除しますか？")) return;
+  clearError();
+  apiPost("deleteTask", { taskId })
+    .then(() => { closeModal(); return refreshTasks(); })
+    .catch((err) => showError("削除に失敗しました：" + err.message));
+});
+
+function loadComments(taskId) {
+  const list = document.getElementById("comment-list");
+  list.innerHTML = '<div class="loading">コメントを読み込み中...</div>';
+  apiGet("getComments", { taskId })
+    .then((comments) => {
+      list.innerHTML =
+        comments
+          .map(
+            (c) => `
+        <div class="comment-item">
+          <div class="comment-meta">${c.author}　${c.postedAt}</div>
+          <div class="comment-text">${escapeHtml(c.content)}</div>
+        </div>`
+          )
+          .join("") || '<div class="empty-msg">コメントはまだありません</div>';
+    })
+    .catch((err) => {
+      list.innerHTML = `<div class="empty-msg">コメントの取得に失敗しました：${escapeHtml(err.message)}</div>`;
+    });
+}
+
+document.getElementById("add-comment-btn").addEventListener("click", () => {
+  const taskId = document.getElementById("f-taskId").value;
+  const textEl = document.getElementById("new-comment-text");
+  const content = textEl.value.trim();
+  if (!content) return;
+
+  apiPost("addComment", { taskId, content })
+    .then(() => {
+      textEl.value = "";
+      loadComments(taskId);
+    })
+    .catch((err) => showError("コメントの追加に失敗しました：" + err.message));
+});
+
+// ============================================================
+// 起動
+// ============================================================
+initLogin();
+</script>
+</body>
+</html>
