@@ -773,9 +773,14 @@ function renderFcOwnerTable(stores) {
       const row = e.target.closest("tr");
       const storeName = row.dataset.store;
       const nextEnabled = btn.dataset.enabled !== "1";
+      btn.disabled = true;
+      btn.textContent = "更新中...";
       apiPost("toggleStoreTest", { storeName, enabled: nextEnabled })
         .then(() => loadFcOwnerPage())
-        .catch((err) => showFcOwnerError("更新に失敗しました：" + err.message));
+        .catch((err) => {
+          showFcOwnerError("更新に失敗しました：" + err.message);
+          btn.disabled = false;
+        });
     });
   });
 
@@ -783,9 +788,15 @@ function renderFcOwnerTable(stores) {
     btn.addEventListener("click", (e) => {
       const row = e.target.closest("tr");
       const storeName = row.dataset.store;
+      btn.disabled = true;
+      btn.textContent = "発行中...";
       apiPost("generateStoreToken", { storeName })
         .then(() => loadFcOwnerPage())
-        .catch((err) => showFcOwnerError("発行に失敗しました：" + err.message));
+        .catch((err) => {
+          showFcOwnerError("発行に失敗しました：" + err.message);
+          btn.disabled = false;
+          btn.textContent = "発行する";
+        });
     });
   });
 
@@ -867,18 +878,35 @@ document.getElementById("save-task-btn").addEventListener("click", () => {
   if (taskId) payload.taskId = taskId;
 
   clearError();
+  const btn = document.getElementById("save-task-btn");
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "保存中...";
+
   apiPost(action, payload)
     .then(() => { closeModal(); return refreshTasks(); })
-    .catch((err) => showError("保存に失敗しました：" + err.message));
+    .catch((err) => showError("保存に失敗しました：" + err.message))
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    });
 });
 
 document.getElementById("delete-task-btn").addEventListener("click", () => {
   const taskId = document.getElementById("f-taskId").value;
   if (!confirm("このタスクを削除しますか？")) return;
   clearError();
+  const btn = document.getElementById("delete-task-btn");
+  btn.disabled = true;
+  btn.textContent = "削除中...";
+
   apiPost("deleteTask", { taskId })
     .then(() => { closeModal(); return refreshTasks(); })
-    .catch((err) => showError("削除に失敗しました：" + err.message));
+    .catch((err) => {
+      showError("削除に失敗しました：" + err.message);
+      btn.disabled = false;
+      btn.textContent = "削除";
+    });
 });
 
 function loadComments(taskId) {
@@ -908,12 +936,20 @@ document.getElementById("add-comment-btn").addEventListener("click", () => {
   const content = textEl.value.trim();
   if (!content) return;
 
+  const btn = document.getElementById("add-comment-btn");
+  btn.disabled = true;
+  btn.textContent = "送信中...";
+
   apiPost("addComment", { taskId, content })
     .then(() => {
       textEl.value = "";
       loadComments(taskId);
     })
-    .catch((err) => showError("コメントの追加に失敗しました：" + err.message));
+    .catch((err) => showError("コメントの追加に失敗しました：" + err.message))
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = "送信";
+    });
 });
 
 // ============================================================
