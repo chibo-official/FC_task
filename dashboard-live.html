@@ -432,6 +432,15 @@
       <input type="date" id="f-due">
     </div>
 
+    <div id="f-links-section" style="display:none; margin-bottom: 12px;">
+      <div id="f-attachment-link" style="display:none; font-size:13px; margin-bottom:6px;">
+        📎 <a href="#" id="f-attachment-anchor" target="_blank" rel="noopener">添付ファイルを開く</a>
+      </div>
+      <div id="f-reference-link" style="display:none; font-size:13px;">
+        🔗 <a href="#" id="f-reference-anchor" target="_blank" rel="noopener">参考URLを開く</a>
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn danger" id="delete-task-btn" style="display:none;">削除</button>
       <div class="spacer"></div>
@@ -490,6 +499,17 @@
     <div class="field">
       <label>個別リマインド日時（任意・1回限り）</label>
       <input type="datetime-local" id="b-custom-alert">
+    </div>
+
+    <div class="field">
+      <label>参考URL（任意）</label>
+      <input type="text" id="b-reference-url" placeholder="https://...">
+    </div>
+
+    <div class="field">
+      <label>添付ファイル（任意・8MBまで）</label>
+      <input type="file" id="b-attachment-file">
+      <div id="b-attachment-status" style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;"></div>
     </div>
 
     <div class="modal-actions">
@@ -985,6 +1005,9 @@ broadcastModalBackdrop.addEventListener("click", (e) => {
 });
 document.getElementById("b-target").addEventListener("change", updateBroadcastTargetNote);
 
+const ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024; // 8MB
+let pendingAttachment = null; // { fileName, mimeType, base64 }
+
 function openBroadcastModal() {
   document.getElementById("b-target").value = "全体";
   document.getElementById("b-title").value = "";
@@ -992,6 +1015,10 @@ function openBroadcastModal() {
   document.getElementById("b-priority").value = "中";
   document.getElementById("b-due").value = "";
   document.getElementById("b-custom-alert").value = "";
+  document.getElementById("b-reference-url").value = "";
+  document.getElementById("b-attachment-file").value = "";
+  document.getElementById("b-attachment-status").textContent = "";
+  pendingAttachment = null;
   document.getElementById("broadcast-error-banner").style.display = "none";
   updateBroadcastTargetNote();
   broadcastModalBackdrop.classList.add("shown");
@@ -1006,6 +1033,37 @@ function updateBroadcastTargetNote() {
   document.getElementById("broadcast-target-note").style.display = isAll ? "block" : "none";
 }
 
+// ファイル選択時にBase64へ変換して保持しておく（送信ボタンを押した時点でAPIへ渡す）
+document.getElementById("b-attachment-file").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  const statusEl = document.getElementById("b-attachment-status");
+  pendingAttachment = null;
+  if (!file) { statusEl.textContent = ""; return; }
+
+  if (file.size > ATTACHMENT_MAX_BYTES) {
+    statusEl.textContent = "⚠️ ファイルサイズが8MBを超えています。選び直してください。";
+    statusEl.style.color = "var(--overdue)";
+    e.target.value = "";
+    return;
+  }
+
+  statusEl.style.color = "var(--ink-soft)";
+  statusEl.textContent = "読み込み中...";
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    // "data:<mime>;base64,xxxx" の xxxx 部分だけを取り出す
+    const base64 = reader.result.split(",")[1];
+    pendingAttachment = { fileName: file.name, mimeType: file.type || "application/octet-stream", base64: base64 };
+    statusEl.textContent = `選択中：${file.name}（${(file.size / 1024).toFixed(0)}KB）`;
+  };
+  reader.onerror = () => {
+    statusEl.textContent = "⚠️ ファイルの読み込みに失敗しました。";
+    statusEl.style.color = "var(--overdue)";
+  };
+  reader.readAsDataURL(file);
+});
+
 document.getElementById("broadcast-send-btn").addEventListener("click", () => {
   const target = document.getElementById("b-target").value;
   const title = document.getElementById("b-title").value.trim();
@@ -1013,6 +1071,7 @@ document.getElementById("broadcast-send-btn").addEventListener("click", () => {
   const priority = document.getElementById("b-priority").value;
   const due = document.getElementById("b-due").value;
   const customAlertAt = document.getElementById("b-custom-alert").value;
+  const referenceUrl = document.getElementById("b-reference-url").value.trim();
 
   const errEl = document.getElementById("broadcast-error-banner");
   errEl.style.display = "none";
@@ -1021,9 +1080,16 @@ document.getElementById("broadcast-send-btn").addEventListener("click", () => {
 
   const btn = document.getElementById("broadcast-send-btn");
   btn.disabled = true;
-  btn.textContent = "配信中...";
+  btn.textContent = pendingAttachment ? "アップロード中..." : "配信中...";
 
-  apiPost("broadcastTask", { target, title, store, priority, due, customAlertAt })
+  const payload = { target, title, store, priority, due, customAlertAt, referenceUrl };
+  if (pendingAttachment) {
+    payload.attachmentFileName = pendingAttachment.fileName;
+    payload.attachmentMimeType = pendingAttachment.mimeType;
+    payload.attachmentBase64 = pendingAttachment.base64;
+  }
+
+  apiPost("broadcastTask", payload)
     .then(() => { closeBroadcastModal(); return refreshTasks(); })
     .catch((err) => {
       errEl.textContent = "配信に失敗しました：" + err.message;
@@ -1047,6 +1113,16 @@ function openTaskModal(taskId) {
   document.getElementById("f-priority").value = task ? task.priority : "中";
   document.getElementById("f-status").value = task ? task.status : "未着手";
   document.getElementById("f-due").value = task ? task.due : "";
+
+  const attachmentLinkEl = document.getElementById("f-attachment-link");
+  const referenceLinkEl = document.getElementById("f-reference-link");
+  const hasAttachment = task && task.attachmentUrl;
+  const hasReference = task && task.referenceUrl;
+  document.getElementById("f-links-section").style.display = (hasAttachment || hasReference) ? "block" : "none";
+  attachmentLinkEl.style.display = hasAttachment ? "block" : "none";
+  referenceLinkEl.style.display = hasReference ? "block" : "none";
+  if (hasAttachment) document.getElementById("f-attachment-anchor").href = task.attachmentUrl;
+  if (hasReference) document.getElementById("f-reference-anchor").href = task.referenceUrl;
 
   const editable = isNew || (task && task.editable);
   ["f-title", "f-store", "f-assignee", "f-priority", "f-status", "f-due"].forEach((id) => {
