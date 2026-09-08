@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>店舗タスク状況</title>
+<style>
+  :root {
+    --bg: #F6F6F4;
+    --panel: #FFFFFF;
+    --ink: #20242C;
+    --ink-soft: #5B6270;
+    --line: #E4E3DE;
+    --accent: #33508F;
+    --accent-soft: #E9EEF7;
+    --status-todo: #8B8F98;
+    --status-progress: #33508F;
+    --status-done: #3C8A5B;
+    --radius: 4px;
+    font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-size: 14px; line-height: 1.6; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 20px 16px 40px; }
+  .header { margin-bottom: 18px; }
+  .header .eyebrow { font-size: 11.5px; color: var(--accent); font-weight: 700; letter-spacing: .04em; }
+  .header h1 { font-size: 19px; margin: 3px 0 0; }
+  .header .sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; }
+
+  .task-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 10px;
+  }
+  .task-title { font-size: 14.5px; font-weight: 700; margin-bottom: 8px; }
+  .status-pill {
+    font-size: 11.5px; padding: 3px 10px; border-radius: 999px; font-weight: 600; display: inline-block; margin-bottom: 8px;
+  }
+  .status-todo-pill { background: #ECECEA; color: var(--status-todo); }
+  .status-progress-pill { background: var(--accent-soft); color: var(--status-progress); }
+  .status-done-pill { background: #E4F2E8; color: var(--status-done); }
+  .task-meta { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 6px; }
+  .task-progress {
+    font-size: 13px; background: var(--bg); border-radius: var(--radius); padding: 8px 10px; margin-top: 6px;
+  }
+  .task-progress .label { font-size: 11px; color: var(--ink-soft); margin-bottom: 3px; }
+
+  .loading, .empty-msg, .error-msg { text-align: center; padding: 40px 20px; color: var(--ink-soft); font-size: 13px; }
+  .error-msg { color: #C1462F; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="eyebrow">千房グループ FC事業部</div>
+    <h1 id="store-name">店舗タスク状況</h1>
+    <div class="sub">現在対応中のタスク状況をご確認いただけます</div>
+  </div>
+
+  <div id="content">
+    <div class="loading">読み込み中...</div>
+  </div>
+</div>
+
+<script>
+const CONFIG = {
+  API_URL: "https://script.google.com/macros/s/AKfycbxRBCXuWsaZwwA7MxZkiwidRu2cDlv-wS-eMotw4CdyIi-1Q3tXLL5a8hZFK6iN47yT/exec",
+};
+
+function getTokenFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("token");
+}
+
+function statusPillClass(status) {
+  return status === "未着手" ? "status-todo-pill" : status === "進行中" ? "status-progress-pill" : "status-done-pill";
+}
+
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function render(data) {
+  document.getElementById("store-name").textContent = data.store + " の対応状況";
+
+  const content = document.getElementById("content");
+  if (!data.tasks || data.tasks.length === 0) {
+    content.innerHTML = '<div class="empty-msg">現在、対応中のタスクはありません。</div>';
+    return;
+  }
+
+  content.innerHTML = data.tasks
+    .map((t) => `
+      <div class="task-card">
+        <span class="status-pill ${statusPillClass(t.status)}">${t.status}</span>
+        <div class="task-title">${escapeHtml(t.title)}</div>
+        <div class="task-meta">発生日：${t.occurredAt || "-"}　完了予定日：${t.dueDate || "未定"}</div>
+        ${t.latestProgress ? `
+          <div class="task-progress">
+            <div class="label">最新の進捗状況</div>
+            ${escapeHtml(t.latestProgress)}
+          </div>` : ""}
+      </div>
+    `)
+    .join("");
+}
+
+function boot() {
+  const token = getTokenFromUrl();
+  if (!token) {
+    document.getElementById("content").innerHTML = '<div class="error-msg">URLが正しくありません。お手数ですが、担当者にご確認ください。</div>';
+    return;
+  }
+
+  const qs = new URLSearchParams({ action: "fcView", token }).toString();
+  fetch(`${CONFIG.API_URL}?${qs}`)
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res.ok) throw new Error(res.error || "取得に失敗しました");
+      render(res.data);
+    })
+    .catch((err) => {
+      document.getElementById("content").innerHTML = `<div class="error-msg">${escapeHtml(err.message)}</div>`;
+    });
+}
+
+boot();
+</script>
+</body>
+</html>

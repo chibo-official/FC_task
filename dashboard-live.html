@@ -91,6 +91,8 @@
   }
 
   .main { padding: 22px 28px 40px; }
+  .page { display: none; }
+  .page.active { display: block; }
   .topbar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
   .topbar h1 { font-size: 19px; margin: 0 0 4px; font-weight: 700; }
   .topbar .sub { font-size: 12.5px; color: var(--ink-soft); }
@@ -207,10 +209,10 @@
         <div class="brand-name">千房ホールディングス</div>
         <div class="brand-title">FC事業部タスク管理</div>
       </div>
-      <div class="nav-item active">タスクボード</div>
-      <div class="nav-item">担当店舗一覧</div>
-      <div class="nav-item">メンバー</div>
-      <div class="nav-item">FCオーナー公開設定</div>
+      <div class="nav-item active" data-page="page-tasks">タスクボード</div>
+      <div class="nav-item" data-page="page-stores">担当店舗一覧</div>
+      <div class="nav-item" data-page="page-members">メンバー</div>
+      <div class="nav-item" data-page="page-fcowner">FCオーナー公開設定</div>
       <div class="sidebar-foot">
         <div class="whoami">ログイン中：<strong id="whoami-name">-</strong>
           <button id="logout-btn">切り替え</button>
@@ -219,50 +221,111 @@
     </div>
 
     <div class="main">
-      <div class="topbar">
-        <div>
-          <h1>タスクボード</h1>
-          <div class="sub" id="topbar-sub">読み込み中...</div>
+      <!-- ページ1：タスクボード -->
+      <div class="page active" id="page-tasks">
+        <div class="topbar">
+          <div>
+            <h1>タスクボード</h1>
+            <div class="sub" id="topbar-sub">読み込み中...</div>
+          </div>
+          <div class="view-toggle">
+            <button id="btn-kanban" class="active">カンバン</button>
+            <button id="btn-table">一覧</button>
+          </div>
         </div>
-        <div class="view-toggle">
-          <button id="btn-kanban" class="active">カンバン</button>
-          <button id="btn-table">一覧</button>
+
+        <div class="error-banner" id="error-banner"></div>
+
+        <div class="toolbar">
+          <span class="chip alert" id="chip-overdue">期限超過 -件</span>
+          <span class="chip" id="chip-todo-stale">未着手 滞留5日以上 -件</span>
+          <div class="spacer"></div>
+          <button class="add-btn" id="add-task-btn">＋ タスクを追加</button>
+        </div>
+
+        <div class="board" id="kanban-view">
+          <div class="col" data-status="未着手">
+            <div class="col-head"><span class="label">未着手</span><span class="count" id="count-todo">0</span></div>
+            <div class="card-list" id="list-todo"></div>
+          </div>
+          <div class="col" data-status="進行中">
+            <div class="col-head"><span class="label">進行中</span><span class="count" id="count-progress">0</span></div>
+            <div class="card-list" id="list-progress"></div>
+          </div>
+          <div class="col" data-status="完了">
+            <div class="col-head"><span class="label">完了</span><span class="count" id="count-done">0</span></div>
+            <div class="card-list" id="list-done"></div>
+          </div>
+        </div>
+
+        <div class="table-wrap" id="table-view">
+          <table>
+            <thead>
+              <tr>
+                <th>ステータス</th><th>タスク</th><th>店舗</th><th>担当者</th><th>優先度</th><th>期限</th>
+              </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+          </table>
         </div>
       </div>
 
-      <div class="error-banner" id="error-banner"></div>
-
-      <div class="toolbar">
-        <span class="chip alert" id="chip-overdue">期限超過 -件</span>
-        <span class="chip" id="chip-todo-stale">未着手 滞留5日以上 -件</span>
-        <div class="spacer"></div>
-        <button class="add-btn" id="add-task-btn">＋ タスクを追加</button>
-      </div>
-
-      <div class="board" id="kanban-view">
-        <div class="col" data-status="未着手">
-          <div class="col-head"><span class="label">未着手</span><span class="count" id="count-todo">0</span></div>
-          <div class="card-list" id="list-todo"></div>
+      <!-- ページ2：担当店舗一覧 -->
+      <div class="page" id="page-stores">
+        <div class="topbar">
+          <div>
+            <h1>担当店舗一覧</h1>
+            <div class="sub">全19店舗の主担当・副担当</div>
+          </div>
         </div>
-        <div class="col" data-status="進行中">
-          <div class="col-head"><span class="label">進行中</span><span class="count" id="count-progress">0</span></div>
-          <div class="card-list" id="list-progress"></div>
-        </div>
-        <div class="col" data-status="完了">
-          <div class="col-head"><span class="label">完了</span><span class="count" id="count-done">0</span></div>
-          <div class="card-list" id="list-done"></div>
+        <div class="table-wrap shown">
+          <table>
+            <thead>
+              <tr><th>店舗名</th><th>主担当者</th><th>副担当者</th><th>対応中タスク</th></tr>
+            </thead>
+            <tbody id="stores-table-body"></tbody>
+          </table>
         </div>
       </div>
 
-      <div class="table-wrap" id="table-view">
-        <table>
-          <thead>
-            <tr>
-              <th>ステータス</th><th>タスク</th><th>店舗</th><th>担当者</th><th>優先度</th><th>期限</th>
-            </tr>
-          </thead>
-          <tbody id="table-body"></tbody>
-        </table>
+      <!-- ページ3：メンバー -->
+      <div class="page" id="page-members">
+        <div class="topbar">
+          <div>
+            <h1>メンバー</h1>
+            <div class="sub">事業部メンバーと役割</div>
+          </div>
+        </div>
+        <div class="table-wrap shown">
+          <table>
+            <thead>
+              <tr><th>氏名</th><th>役割</th><th>対応中タスク</th></tr>
+            </thead>
+            <tbody id="members-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ページ4：FCオーナー公開設定（管理者専用） -->
+      <div class="page" id="page-fcowner">
+        <div class="topbar">
+          <div>
+            <h1>FCオーナー公開設定</h1>
+            <div class="sub">店舗ごとの閲覧用URL発行・テスト運用対象の管理</div>
+          </div>
+        </div>
+        <div class="error-banner" id="fcowner-error-banner"></div>
+        <div id="fcowner-permission-note" class="readonly-note" style="display:none;">
+          この画面は管理者のみ利用できます。
+        </div>
+        <div class="table-wrap shown" id="fcowner-table-wrap">
+          <table>
+            <thead>
+              <tr><th>店舗名</th><th>テスト運用</th><th>閲覧用URL</th><th></th></tr>
+            </thead>
+            <tbody id="fcowner-table-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -337,6 +400,7 @@
 // ============================================================
 const CONFIG = {
   API_URL: "https://script.google.com/macros/s/AKfycbxRBCXuWsaZwwA7MxZkiwidRu2cDlv-wS-eMotw4CdyIi-1Q3tXLL5a8hZFK6iN47yT/exec",
+  FC_OWNER_VIEW_BASE_URL: "https://chibo-official.github.io/FC_task/fc-owner-view.html",
 };
 
 // アプリの状態（ページを開いている間のみ保持。localStorage等は使用しない）
@@ -434,6 +498,8 @@ function initApp() {
     .then(([stores]) => {
       state.stores = stores;
       populateSelectOptions();
+      renderStoresPage();
+      renderMembersPage();
     })
     .catch((err) => showError("初期読み込みに失敗しました：" + err.message));
 }
@@ -451,6 +517,8 @@ function refreshTasks() {
     .then((tasks) => {
       state.tasks = tasks;
       renderAll();
+      renderStoresPage();
+      renderMembersPage();
       return tasks;
     })
     .catch((err) => {
@@ -582,6 +650,161 @@ function setView(view) {
   document.getElementById("btn-table").classList.toggle("active", view === "table");
   document.getElementById("kanban-view").classList.toggle("hidden", view !== "kanban");
   document.getElementById("table-view").classList.toggle("shown", view === "table");
+}
+
+// ============================================================
+// サイドバーのページ切り替え
+// ============================================================
+document.querySelectorAll(".nav-item").forEach((el) => {
+  el.addEventListener("click", () => setPage(el.dataset.page));
+});
+
+function setPage(pageId) {
+  document.querySelectorAll(".nav-item").forEach((el) => {
+    el.classList.toggle("active", el.dataset.page === pageId);
+  });
+  document.querySelectorAll(".page").forEach((el) => {
+    el.classList.toggle("active", el.id === pageId);
+  });
+  if (pageId === "page-fcowner") {
+    loadFcOwnerPage();
+  }
+}
+
+// ============================================================
+// 担当店舗一覧ページ
+// ============================================================
+function renderStoresPage() {
+  const body = document.getElementById("stores-table-body");
+  if (!body) return;
+  body.innerHTML = state.stores
+    .filter((s) => s.name !== "全店舗共通")
+    .map((s) => {
+      const openCount = state.tasks.filter((t) => t.store === s.name && t.status !== "完了").length;
+      return `
+        <tr>
+          <td>${s.name}</td>
+          <td>${s.mainOwner || "-"}</td>
+          <td>${s.subOwner || "-"}</td>
+          <td>${openCount}件</td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+// ============================================================
+// メンバーページ
+// ============================================================
+function renderMembersPage() {
+  const body = document.getElementById("members-table-body");
+  if (!body) return;
+  body.innerHTML = state.members
+    .map((m) => {
+      const openCount = state.tasks.filter((t) => t.assignee === m.name && t.status !== "完了").length;
+      const roleTag = m.role === "管理者" ? '<span class="task-store">管理者</span>' : "";
+      return `
+        <tr>
+          <td>${m.name} ${roleTag}</td>
+          <td>${m.role}</td>
+          <td>${openCount}件</td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+// ============================================================
+// FCオーナー公開設定ページ（管理者専用）
+// ============================================================
+function loadFcOwnerPage() {
+  const errEl = document.getElementById("fcowner-error-banner");
+  const noteEl = document.getElementById("fcowner-permission-note");
+  const tableWrap = document.getElementById("fcowner-table-wrap");
+  errEl.style.display = "none";
+
+  apiGet("listStoresAdmin", { user: state.currentUser })
+    .then((stores) => {
+      noteEl.style.display = "none";
+      tableWrap.style.display = "block";
+      renderFcOwnerTable(stores);
+    })
+    .catch((err) => {
+      // 管理者以外のユーザーが開いた場合はエラーではなく案内表示にする
+      tableWrap.style.display = "none";
+      noteEl.style.display = "block";
+    });
+}
+
+function renderFcOwnerTable(stores) {
+  const body = document.getElementById("fcowner-table-body");
+  body.innerHTML = stores
+    .map((s) => {
+      const fullUrl = s.token ? `${CONFIG.FC_OWNER_VIEW_BASE_URL}?token=${s.token}` : "";
+      return `
+        <tr data-store="${escapeHtml(s.name)}">
+          <td>${s.name}</td>
+          <td>
+            <button class="btn toggle-test-btn" data-enabled="${s.testEnabled ? "1" : "0"}">
+              ${s.testEnabled ? "対象：ON" : "対象：OFF"}
+            </button>
+          </td>
+          <td>
+            ${
+              s.token
+                ? `<span style="font-size:12px;word-break:break-all;">${fullUrl}</span>`
+                : '<span style="color:var(--ink-soft);font-size:12px;">未発行</span>'
+            }
+          </td>
+          <td style="white-space:nowrap;">
+            ${
+              s.token
+                ? `<button class="btn copy-url-btn" data-url="${fullUrl}">コピー</button>`
+                : `<button class="btn primary generate-token-btn">発行する</button>`
+            }
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  body.querySelectorAll(".toggle-test-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const row = e.target.closest("tr");
+      const storeName = row.dataset.store;
+      const nextEnabled = btn.dataset.enabled !== "1";
+      apiPost("toggleStoreTest", { storeName, enabled: nextEnabled })
+        .then(() => loadFcOwnerPage())
+        .catch((err) => showFcOwnerError("更新に失敗しました：" + err.message));
+    });
+  });
+
+  body.querySelectorAll(".generate-token-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const row = e.target.closest("tr");
+      const storeName = row.dataset.store;
+      apiPost("generateStoreToken", { storeName })
+        .then(() => loadFcOwnerPage())
+        .catch((err) => showFcOwnerError("発行に失敗しました：" + err.message));
+    });
+  });
+
+  body.querySelectorAll(".copy-url-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const url = btn.dataset.url;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(url);
+        btn.textContent = "コピーしました";
+        setTimeout(() => (btn.textContent = "コピー"), 1500);
+      }
+    });
+  });
+}
+
+function showFcOwnerError(msg) {
+  const el = document.getElementById("fcowner-error-banner");
+  el.textContent = msg;
+  el.style.display = "block";
 }
 
 // ============================================================
