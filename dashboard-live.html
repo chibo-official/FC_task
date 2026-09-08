@@ -107,6 +107,7 @@
   .chip.alert { border-color: var(--overdue); color: var(--overdue); background: var(--overdue-bg); font-weight: 600; }
   .spacer { flex: 1; }
   .add-btn { background: var(--accent); color: #fff; border: none; padding: 8px 16px; font-size: 13px; border-radius: var(--radius); font-weight: 600; cursor: pointer; }
+  .broadcast-btn { background: #fff; color: var(--accent); border: 1px solid var(--accent); padding: 8px 16px; font-size: 13px; border-radius: var(--radius); font-weight: 600; cursor: pointer; }
 
   .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
   .col { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); min-height: 200px; }
@@ -128,6 +129,7 @@
   .task-due.overdue-text { color: var(--overdue); font-weight: 700; }
   .task-due.soon-text { color: var(--warn); font-weight: 700; }
   .avatar { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .avatar-all { background: #6B4FA0; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; flex-shrink: 0; }
   .priority-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 5px; }
   .p-high { background: var(--overdue); }
   .p-mid { background: var(--warn); }
@@ -293,6 +295,7 @@
           <span class="chip alert" id="chip-overdue">期限超過 -件</span>
           <span class="chip" id="chip-todo-stale">未着手 滞留5日以上 -件</span>
           <div class="spacer"></div>
+          <button class="btn broadcast-btn" id="broadcast-task-btn" style="display:none;">📢 タスクを配信</button>
           <button class="add-btn" id="add-task-btn">＋ タスクを追加</button>
         </div>
 
@@ -447,6 +450,56 @@
   </div>
 </div>
 
+<!-- ============ Broadcast modal（管理者専用） ============ -->
+<div class="modal-backdrop" id="broadcast-modal-backdrop">
+  <div class="modal">
+    <h2>タスクを配信</h2>
+    <div class="error-banner" id="broadcast-error-banner"></div>
+
+    <div class="field">
+      <label>宛先</label>
+      <select id="b-target"></select>
+    </div>
+    <div class="readonly-note" id="broadcast-target-note" style="display:none;">
+      「全体」を選ぶと、全メンバーが確認・完了操作できる共有タスクとして登録されます。
+    </div>
+
+    <div class="field">
+      <label>タイトル</label>
+      <input type="text" id="b-title" placeholder="例：10月度 販促POPの店頭掲出確認">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>関連店舗</label>
+        <select id="b-store"></select>
+      </div>
+      <div class="field">
+        <label>優先度</label>
+        <select id="b-priority">
+          <option value="高">高</option>
+          <option value="中" selected>中</option>
+          <option value="低">低</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>期限</label>
+      <input type="date" id="b-due">
+    </div>
+
+    <div class="field">
+      <label>個別リマインド日時（任意・1回限り）</label>
+      <input type="datetime-local" id="b-custom-alert">
+    </div>
+
+    <div class="modal-actions">
+      <div class="spacer"></div>
+      <button class="btn" id="broadcast-cancel-btn">キャンセル</button>
+      <button class="btn primary" id="broadcast-send-btn">配信する</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // 設定
@@ -506,12 +559,13 @@ function clearError() {
 // ログイン画面
 // ============================================================
 function initLogin() {
-  apiGet("listMembers")
-    .then((members) => {
-      state.members = members;
+  apiGet("bootstrap")
+    .then((data) => {
+      state.members = data.members;
+      state.stores = data.stores;
       const container = document.getElementById("member-list");
       container.innerHTML = "";
-      members.forEach((m) => {
+      data.members.forEach((m) => {
         const btn = document.createElement("button");
         btn.className = "member-btn";
         btn.innerHTML = `${m.name}${m.role === "管理者" ? '<span class="member-role-tag">管理者</span>' : ""}`;
@@ -521,7 +575,7 @@ function initLogin() {
     })
     .catch((err) => {
       document.getElementById("login-error").textContent =
-        "メンバー一覧の取得に失敗しました：" + err.message;
+        "読み込みに失敗しました：" + err.message;
     });
 }
 
@@ -531,6 +585,9 @@ function login(name, role) {
   document.getElementById("login-screen").style.display = "none";
   document.getElementById("app").style.display = "block";
   document.getElementById("whoami-name").textContent = name;
+  if (role === "管理者") {
+    document.getElementById("broadcast-task-btn").style.display = "inline-block";
+  }
   initApp();
 }
 
@@ -544,12 +601,14 @@ document.getElementById("logout-btn").addEventListener("click", logout);
 
 // ============================================================
 // アプリ本体の初期化
+// ------------------------------------------------------------
+// メンバー・店舗一覧はログイン画面表示時（bootstrap）で取得済みのため、
+// ここではタスク一覧のみを取得すればよい（通信回数の削減）
 // ============================================================
 function initApp() {
   clearError();
-  Promise.all([apiGet("listStores"), refreshTasks()])
-    .then(([stores]) => {
-      state.stores = stores;
+  refreshTasks()
+    .then(() => {
       populateSelectOptions();
       renderStoresPage();
       renderMembersPage();
@@ -563,6 +622,14 @@ function populateSelectOptions() {
 
   const assigneeSel = document.getElementById("f-assignee");
   assigneeSel.innerHTML = state.members.map((m) => `<option value="${m.name}">${m.name}</option>`).join("");
+
+  const bStoreSel = document.getElementById("b-store");
+  bStoreSel.innerHTML = state.stores.map((s) => `<option value="${s.name}">${s.name}</option>`).join("");
+
+  const bTargetSel = document.getElementById("b-target");
+  bTargetSel.innerHTML =
+    `<option value="全体">全体（全員）</option>` +
+    state.members.map((m) => `<option value="${m.name}">${m.name}</option>`).join("");
 }
 
 function refreshTasks() {
@@ -609,13 +676,18 @@ function taskCardHtml(t) {
       : `<span class="task-due">期限：${t.due || ""}</span>`;
   }
 
+  const avatarHtml =
+    t.assignee === "全員"
+      ? `<span class="avatar-all" title="全員">全員</span>`
+      : `<span class="avatar" title="${t.assignee}">${avatarInitial(t.assignee)}</span>`;
+
   return `
     <div class="${cls.join(" ")}" data-task-id="${t.taskId}">
       <span class="task-store">${t.store}</span>
       <div class="task-title"><span class="priority-dot ${priorityClass}"></span>${escapeHtml(t.title)}${t.editable ? "" : ' <span class="lock-icon">🔒</span>'}</div>
       <div class="task-meta">
         ${dueLabel}
-        <span class="avatar" title="${t.assignee}">${avatarInitial(t.assignee)}</span>
+        ${avatarHtml}
       </div>
     </div>
   `;
@@ -900,6 +972,68 @@ modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop)
 function closeModal() {
   modalBackdrop.classList.remove("shown");
 }
+
+// ============================================================
+// タスク配信モーダル（管理者専用）
+// ============================================================
+const broadcastModalBackdrop = document.getElementById("broadcast-modal-backdrop");
+
+document.getElementById("broadcast-task-btn").addEventListener("click", openBroadcastModal);
+document.getElementById("broadcast-cancel-btn").addEventListener("click", closeBroadcastModal);
+broadcastModalBackdrop.addEventListener("click", (e) => {
+  if (e.target === broadcastModalBackdrop) closeBroadcastModal();
+});
+document.getElementById("b-target").addEventListener("change", updateBroadcastTargetNote);
+
+function openBroadcastModal() {
+  document.getElementById("b-target").value = "全体";
+  document.getElementById("b-title").value = "";
+  document.getElementById("b-store").value = state.stores[0] ? state.stores[0].name : "";
+  document.getElementById("b-priority").value = "中";
+  document.getElementById("b-due").value = "";
+  document.getElementById("b-custom-alert").value = "";
+  document.getElementById("broadcast-error-banner").style.display = "none";
+  updateBroadcastTargetNote();
+  broadcastModalBackdrop.classList.add("shown");
+}
+
+function closeBroadcastModal() {
+  broadcastModalBackdrop.classList.remove("shown");
+}
+
+function updateBroadcastTargetNote() {
+  const isAll = document.getElementById("b-target").value === "全体";
+  document.getElementById("broadcast-target-note").style.display = isAll ? "block" : "none";
+}
+
+document.getElementById("broadcast-send-btn").addEventListener("click", () => {
+  const target = document.getElementById("b-target").value;
+  const title = document.getElementById("b-title").value.trim();
+  const store = document.getElementById("b-store").value;
+  const priority = document.getElementById("b-priority").value;
+  const due = document.getElementById("b-due").value;
+  const customAlertAt = document.getElementById("b-custom-alert").value;
+
+  const errEl = document.getElementById("broadcast-error-banner");
+  errEl.style.display = "none";
+  if (!title) { errEl.textContent = "タイトルを入力してください。"; errEl.style.display = "block"; return; }
+  if (!store) { errEl.textContent = "店舗を選択してください。"; errEl.style.display = "block"; return; }
+
+  const btn = document.getElementById("broadcast-send-btn");
+  btn.disabled = true;
+  btn.textContent = "配信中...";
+
+  apiPost("broadcastTask", { target, title, store, priority, due, customAlertAt })
+    .then(() => { closeBroadcastModal(); return refreshTasks(); })
+    .catch((err) => {
+      errEl.textContent = "配信に失敗しました：" + err.message;
+      errEl.style.display = "block";
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = "配信する";
+    });
+});
 
 function openTaskModal(taskId) {
   const isNew = !taskId;
